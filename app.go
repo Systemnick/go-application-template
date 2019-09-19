@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"git.rnd.mtt/innovation/call-initiator/forms"
+	"git.rnd.mtt/innovation/call-initiator/storage"
 	"github.com/rs/zerolog"
 )
 
@@ -18,7 +19,7 @@ type Config struct {
 type Application struct {
 	logger        zerolog.Logger
 	voicePlatform IVoicePlatform
-	storage       IStorage
+	storage       storage.IStorage
 	input         IInput
 }
 
@@ -29,6 +30,7 @@ func NewApplication() (*Application, error) {
 
 	app.logger = initLogger()
 	app.voicePlatform = initVoicePlatform()
+	app.storage = initStorage()
 
 	return app, nil
 }
@@ -51,6 +53,12 @@ func initVoicePlatform() IVoicePlatform {
 	// }
 	// voicePlatform.Connect()
 	return nil
+}
+
+func initStorage() storage.IStorage {
+	t := &storage.Tarantool{}
+	t.Dsn = ":3301"
+	return t
 }
 
 func (a *Application) Run() {
