@@ -1,9 +1,13 @@
-package storage
+package tarantool
 
-import "fmt"
+import (
+	"fmt"
+
+	"git.rnd.mtt/innovation/call-initiator/storage"
+)
 
 type Tarantool struct {
-	Storage
+	storage.Storage
 }
 
 // Example:

@@ -1,4 +1,4 @@
-package forms
+package input
 
 type InputForm struct {
 	CallSid string

@@ -1,22 +1,13 @@
-package main
+package voice_platform
 
 type Call struct {
 	sid      string
-	uuid     string
-	channel  string
-	fromName string
 	from     string
 	to       string
-	timeout  int
-	user     string
 	scenario *Scenario
 }
 
 type Scenario []Action
-
-// type Scenario struct {
-// 	scenario []Action
-// }
 
 type Action struct {
 	command string
@@ -24,8 +15,16 @@ type Action struct {
 	count   int
 }
 
+type Params struct {
+	Events chan string
+}
+
 type IVoicePlatform interface {
-	Connect(params interface{})
+	Connect(params Params) error
 	CreateCall(call Call) error
 	ModifyCall(call Call) error
+}
+
+type VoicePlatform struct {
+	IVoicePlatform
 }
