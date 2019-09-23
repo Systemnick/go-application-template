@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
-	"git.rnd.mtt/innovation/call-initiator/forms"
+	"git.rnd.mtt/innovation/call-initiator/input"
 	"git.rnd.mtt/innovation/call-initiator/storage"
+	"git.rnd.mtt/innovation/call-initiator/storage/tarantool"
+	voicePlatform "git.rnd.mtt/innovation/call-initiator/voice-platform"
 	"github.com/rs/zerolog"
 )
 
@@ -18,9 +21,13 @@ type Config struct {
 
 type Application struct {
 	logger        zerolog.Logger
-	voicePlatform IVoicePlatform
+	voicePlatform voicePlatform.IVoicePlatform
 	storage       storage.IStorage
-	input         IInput
+	input         input.IInput
+}
+
+func (a *Application) Logger() zerolog.Logger {
+	return a.logger
 }
 
 var config Config
@@ -46,7 +53,7 @@ func initLogger() (zerolog.Logger) {
 	return logger
 }
 
-func initVoicePlatform() IVoicePlatform {
+func initVoicePlatform() voicePlatform.IVoicePlatform {
 	// switch config.VoicePlatform {
 	// case "FreeSWITCH":
 	// 	voicePlatform = FreeSWITCH{}
@@ -56,25 +63,27 @@ func initVoicePlatform() IVoicePlatform {
 }
 
 func initStorage() storage.IStorage {
-	t := &storage.Tarantool{}
+	t := &tarantool.Tarantool{}
 	t.Dsn = ":3301"
 	return t
 }
 
-func (a *Application) Run() {
-	var s []chan forms.InputForm
+func (a *Application) Run() error {
+	var s []chan input.InForm
 
 	for i := 0; i < config.WorkerCount; i++ {
-		c := make(chan forms.InputForm)
+		c := make(chan input.InForm)
 		s = append(s, c)
 		go a.StartWorker(c)
 	}
+
+	return nil
 }
 
-func (a *Application) StartWorker(c chan forms.InputForm) {
+func (a *Application) StartWorker(c chan input.InForm) {
 	select {
-	case input := <-c:
-		existing, err := a.FindCall(input.CallSid)
+	case inForm := <-c:
+		existing, err := a.FindCall(inForm.CallSid)
 		if err != nil {
 			fmt.Println(err.Error())
 		} else {
@@ -86,4 +95,10 @@ func (a *Application) StartWorker(c chan forms.InputForm) {
 
 func (a *Application) FindCall(callSid string) (string, error) {
 	return a.storage.FindRecord(callSid)
+}
+
+func (a *Application) Stop(context context.Context) error {
+	// todo Stop all routines
+
+	return nil
 }
