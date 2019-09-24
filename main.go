@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 )
 
 func main() {
-	a, err := NewApplication()
+	c := initConfig()
+
+	a, err := NewApplication(c)
 	if err != nil {
 		fmt.Printf("Creating application error: %s\n", err.Error())
 		return
@@ -26,7 +29,7 @@ func main() {
 	signal.Notify(quit, os.Interrupt)
 	s := <-quit
 
-	fmt.Printf("Signal %s was received", s.String())
+	fmt.Printf("Signal %s was received\n", s.String())
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -34,4 +37,16 @@ func main() {
 		fmt.Printf("Application stop error: %s\n", err.Error())
 		return
 	}
+}
+
+func initConfig() *Config {
+	wc, err := strconv.Atoi(os.Getenv("WORKER_COUNT"))
+	if err != nil {
+		fmt.Printf("Environment variable WORKER_COUNT: bad integer: %s\n", err.Error())
+	}
+
+	c := &Config{}
+	c.WorkerCount = wc
+
+	return c
 }

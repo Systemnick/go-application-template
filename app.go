@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 
 	"git.rnd.mtt/innovation/call-initiator/input"
@@ -20,22 +21,25 @@ type Config struct {
 }
 
 type Application struct {
-	id            string
-	logger        zerolog.Logger
-	voicePlatform voicePlatform.IVoicePlatform
-	storage       storage.IStorage
-	input         input.IInput
+	id             string
+	config         *Config
+	logger         zerolog.Logger
+	voicePlatform  voicePlatform.IVoicePlatform
+	storage        storage.IStorage
+	input          input.IInput
+	workerChannels []chan input.InForm
+	wait           *sync.WaitGroup
 }
 
-var config Config
-
-func NewApplication() (*Application, error) {
+func NewApplication(c *Config) (*Application, error) {
 	app := &Application{}
 
 	app.id = uuid.NewV4().String()
+	app.config = c
 	app.logger = initLogger()
 	app.voicePlatform = initVoicePlatform()
 	app.storage = initStorage()
+	app.wait = &sync.WaitGroup{}
 
 	return app, nil
 }
@@ -67,13 +71,12 @@ func initStorage() storage.IStorage {
 }
 
 func (a *Application) Run() error {
-	var s []chan input.InForm
-
-	for i := 0; i < config.WorkerCount; i++ {
+	for i := 0; i < a.config.WorkerCount; i++ {
 		c := make(chan input.InForm)
-		s = append(s, c)
+		a.workerChannels = append(a.workerChannels, c)
 		w := a.NewWorker(c)
-		go w.Run()
+		a.wait.Add(1)
+		go w.Run(a.wait)
 	}
 
 	return nil
@@ -81,7 +84,12 @@ func (a *Application) Run() error {
 
 func (a *Application) Stop(context context.Context) error {
 	// todo Stop all routines
-	a.logger.Info().Str("application", a.id).Msg("Stopping application")
+	a.logger.Debug().Str("application", a.id).Msg("Stopping application")
+	for _, channel := range a.workerChannels {
+		close(channel)
+	}
+	a.wait.Wait()
+	a.logger.Info().Str("application", a.id).Msg("Stopping completed")
 
 	return nil
 }
