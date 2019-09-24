@@ -1,18 +1,18 @@
 package voice_platform
 
 type Call struct {
-	sid      string
-	from     string
-	to       string
-	scenario *Scenario
+	Sid      string
+	From     string
+	To       string
+	Scenario *Scenario
 }
 
 type Scenario []Action
 
 type Action struct {
-	command string
-	params  map[string]string
-	count   int
+	Command string
+	Params  map[string]string
+	Count   int
 }
 
 type Params struct {
@@ -23,6 +23,8 @@ type IVoicePlatform interface {
 	Connect(params Params) error
 	CreateCall(call Call) error
 	ModifyCall(call Call) error
+
+	AddParticipant(call Call) error
 }
 
 type VoicePlatform struct {

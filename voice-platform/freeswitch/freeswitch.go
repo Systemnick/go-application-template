@@ -10,11 +10,11 @@ import (
 
 type Call struct {
 	voicePlatform.Call
-	uuid     string
-	channel  string
-	fromName string
-	timeout  int
-	user     string
+	Uuid     string
+	Channel  string
+	FromName string
+	Timeout  int
+	User     string
 }
 
 type Params struct {

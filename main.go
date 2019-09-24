@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"time"
@@ -18,23 +17,21 @@ func main() {
 
 	fmt.Printf("Application: %+v\n", a)
 
-	go func() {
-		if err := a.Run(); err != http.ErrServerClosed {
-			a.Logger().Fatal().Msgf("http server run error: %s", err)
-			return
-		}
-	}()
+	if err := a.Run(); err != nil {
+		fmt.Printf("Application run error: %s\n", err.Error())
+		return
+	}
 
 	quit := make(chan os.Signal)
 	signal.Notify(quit, os.Interrupt)
-	<-quit
+	s := <-quit
 
-	a.Logger().Info().Msg("get signal start to shutdown")
+	fmt.Printf("Signal %s was received", s.String())
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := a.Stop(ctx); err != nil {
-		a.Logger().Error().Msgf("application stop error %s", err)
+		fmt.Printf("Application stop error: %s\n", err.Error())
 		return
 	}
 }

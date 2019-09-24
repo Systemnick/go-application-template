@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"git.rnd.mtt/innovation/call-initiator/storage/tarantool"
 	voicePlatform "git.rnd.mtt/innovation/call-initiator/voice-platform"
 	"github.com/rs/zerolog"
+	"github.com/twinj/uuid"
 )
 
 type Config struct {
@@ -20,14 +20,11 @@ type Config struct {
 }
 
 type Application struct {
+	id            string
 	logger        zerolog.Logger
 	voicePlatform voicePlatform.IVoicePlatform
 	storage       storage.IStorage
 	input         input.IInput
-}
-
-func (a *Application) Logger() zerolog.Logger {
-	return a.logger
 }
 
 var config Config
@@ -35,6 +32,7 @@ var config Config
 func NewApplication() (*Application, error) {
 	app := &Application{}
 
+	app.id = uuid.NewV4().String()
 	app.logger = initLogger()
 	app.voicePlatform = initVoicePlatform()
 	app.storage = initStorage()
@@ -74,31 +72,16 @@ func (a *Application) Run() error {
 	for i := 0; i < config.WorkerCount; i++ {
 		c := make(chan input.InForm)
 		s = append(s, c)
-		go a.StartWorker(c)
+		w := a.NewWorker(c)
+		go w.Run()
 	}
 
 	return nil
 }
 
-func (a *Application) StartWorker(c chan input.InForm) {
-	select {
-	case inForm := <-c:
-		existing, err := a.FindCall(inForm.CallSid)
-		if err != nil {
-			fmt.Println(err.Error())
-		} else {
-			fmt.Println("JSON: " + existing)
-		}
-
-	}
-}
-
-func (a *Application) FindCall(callSid string) (string, error) {
-	return a.storage.FindRecord(callSid)
-}
-
 func (a *Application) Stop(context context.Context) error {
 	// todo Stop all routines
+	a.logger.Info().Str("application", a.id).Msg("Stopping application")
 
 	return nil
 }
