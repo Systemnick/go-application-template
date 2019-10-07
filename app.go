@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"git.rnd.mtt/innovation/call-initiator/input"
+	"git.rnd.mtt/innovation/call-initiator/input/amqp"
 	"git.rnd.mtt/innovation/call-initiator/storage"
 	"git.rnd.mtt/innovation/call-initiator/storage/tarantool"
-	voicePlatform "git.rnd.mtt/innovation/call-initiator/voice-platform"
+	"git.rnd.mtt/innovation/call-initiator/voice-platform/freeswitch"
 	"github.com/rs/zerolog"
 	"github.com/twinj/uuid"
 )
@@ -18,33 +19,37 @@ type Config struct {
 	WorkerCount   int
 	LogFluentd    string
 	VoicePlatform string
+	FS            freeswitch.Params
 }
 
 type Application struct {
 	id             string
 	config         *Config
-	logger         zerolog.Logger
-	voicePlatform  voicePlatform.IVoicePlatform
-	storage        storage.IStorage
+	logger         *zerolog.Logger
 	input          input.IInput
+	storage        storage.IStorage
+	voicePlatform  *freeswitch.Freeswitch
 	workerChannels []chan input.InForm
 	wait           *sync.WaitGroup
 }
 
 func NewApplication(c *Config) (*Application, error) {
-	app := &Application{}
+	a := &Application{}
 
-	app.id = uuid.NewV4().String()
-	app.config = c
-	app.logger = initLogger()
-	app.voicePlatform = initVoicePlatform()
-	app.storage = initStorage()
-	app.wait = &sync.WaitGroup{}
+	a.id = uuid.NewV4().String()
+	a.config = c
+	a.logger = initLogger()
+	a.input = initInput()
+	a.storage = initStorage()
+	a.voicePlatform = initVoicePlatform(c.FS)
+	a.wait = &sync.WaitGroup{}
 
-	return app, nil
+	a.logger.Info().Str("application", a.id).Msg("Application started")
+
+	return a, nil
 }
 
-func initLogger() (zerolog.Logger) {
+func initLogger() *zerolog.Logger {
 	zerolog.TimeFieldFormat = time.RFC3339
 	zerolog.DurationFieldUnit = time.Millisecond
 	zerolog.DurationFieldInteger = true
@@ -52,16 +57,13 @@ func initLogger() (zerolog.Logger) {
 
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
-	return logger
+	return &logger
 }
 
-func initVoicePlatform() voicePlatform.IVoicePlatform {
-	// switch config.VoicePlatform {
-	// case "FreeSWITCH":
-	// 	voicePlatform = FreeSWITCH{}
-	// }
-	// voicePlatform.Connect()
-	return nil
+func initInput() input.IInput {
+	a := &amqp.AMQP{}
+	a.Url = "amqp://guest:guest@localhost:5672/"
+	return a
 }
 
 func initStorage() storage.IStorage {
@@ -70,11 +72,20 @@ func initStorage() storage.IStorage {
 	return t
 }
 
+func initVoicePlatform(params freeswitch.Params) *freeswitch.Freeswitch {
+	vp := freeswitch.Freeswitch{}
+	err := vp.Connect(params)
+	if err != nil {
+		// todo Print something
+	}
+	return &vp
+}
+
 func (a *Application) Run() error {
 	for i := 0; i < a.config.WorkerCount; i++ {
 		c := make(chan input.InForm)
 		a.workerChannels = append(a.workerChannels, c)
-		w := a.NewWorker(c)
+		w := a.NewWorker(i, c)
 		a.wait.Add(1)
 		go w.Run(a.wait)
 	}
@@ -83,10 +94,10 @@ func (a *Application) Run() error {
 }
 
 func (a *Application) Stop(context context.Context) error {
-	// todo Stop all routines
 	a.logger.Debug().Str("application", a.id).Msg("Stopping application")
 	for _, channel := range a.workerChannels {
 		close(channel)
+		a.workerChannels = a.workerChannels[1:]
 	}
 	a.wait.Wait()
 	a.logger.Info().Str("application", a.id).Msg("Stopping completed")

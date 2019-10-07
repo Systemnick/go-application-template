@@ -2,32 +2,27 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 
 	"git.rnd.mtt/innovation/call-initiator/input"
 	"git.rnd.mtt/innovation/call-initiator/storage"
 	voicePlatform "git.rnd.mtt/innovation/call-initiator/voice-platform"
-	"github.com/twinj/uuid"
 )
 
 type Worker struct {
-	id      string
+	id      int
 	app     *Application
 	channel chan input.InForm
 }
 
-func (a *Application) NewWorker(c chan input.InForm) *Worker {
+func (a *Application) NewWorker(id int, c chan input.InForm) *Worker {
 	w := &Worker{}
 
-	w.id = uuid.NewV4().String()
+	w.id = id
 	w.app = a
 	w.channel = c
 
-	a.logger.Debug().Str("application", a.id).Str("worker", w.id).
-		Str("storage", fmt.Sprintf("%T", a.storage)).
-		Str("voice_platform", fmt.Sprintf("%T", a.voicePlatform)).
-		Msg("Worker created")
+	a.logger.Debug().Str("application", a.id).Int("worker", w.id).Msg("Worker created")
 
 	return w
 }
@@ -37,18 +32,12 @@ func (w *Worker) Run(wg *sync.WaitGroup) {
 
 	a := w.app
 
-	a.logger.Debug().Str("application", a.id).Str("worker", w.id).
-		Str("storage", fmt.Sprintf("%T", a.storage)).
-		Str("voice_platform", fmt.Sprintf("%T", a.voicePlatform)).
-		Msg("Worker started")
+	a.logger.Debug().Str("application", a.id).Int("worker", w.id).Msg("Worker started")
 
 	for {
 		inForm, more := <-w.channel
 		if !more {
-			a.logger.Debug().Str("application", a.id).Str("worker", w.id).
-				Str("storage", fmt.Sprintf("%T", a.storage)).
-				Str("voice_platform", fmt.Sprintf("%T", a.voicePlatform)).
-				Msg("No more messages, exiting")
+			a.logger.Debug().Str("application", a.id).Int("worker", w.id).Msg("No more messages, exiting")
 			break
 		}
 
@@ -61,9 +50,8 @@ func (w *Worker) Run(wg *sync.WaitGroup) {
 
 			err := w.processNewCall(call, scenario)
 			if err != nil {
-				a.logger.Warn().Str("application", a.id).Str("worker", w.id).
+				a.logger.Warn().Str("application", a.id).Int("worker", w.id).
 					Str("call_sid", inForm.CallSid).
-					Str("voice_platform", fmt.Sprintf("%T", a.voicePlatform)).
 					Msgf("processNewCall error: %s", err)
 				continue
 			}
@@ -71,9 +59,8 @@ func (w *Worker) Run(wg *sync.WaitGroup) {
 		case input.ExistingCall:
 			existing, err := w.findCall(inForm.CallSid)
 			if err != nil {
-				a.logger.Warn().Str("application", a.id).Str("worker", w.id).
+				a.logger.Warn().Str("application", a.id).Int("worker", w.id).
 					Str("call_sid", inForm.CallSid).
-					Str("voice_platform", fmt.Sprintf("%T", a.voicePlatform)).
 					Msgf("findCall error: %s", err)
 				continue
 			}
@@ -81,16 +68,14 @@ func (w *Worker) Run(wg *sync.WaitGroup) {
 			call := w.convertCallInputToVoicePlatform(&inForm)
 			err = w.modifyCall(call)
 			if err != nil {
-				a.logger.Warn().Str("application", a.id).Str("worker", w.id).
+				a.logger.Warn().Str("application", a.id).Int("worker", w.id).
 					Str("call_sid", inForm.CallSid).
-					Str("voice_platform", fmt.Sprintf("%T", a.voicePlatform)).
 					Msgf("modifyCall error: %s", err)
 				continue
 			}
 
-			a.logger.Debug().Str("application", a.id).Str("worker", w.id).
+			a.logger.Debug().Str("application", a.id).Int("worker", w.id).
 				Str("call_sid", inForm.CallSid).
-				Str("voice_platform", fmt.Sprintf("%T", a.voicePlatform)).
 				Msgf("JSON: %s", existing)
 
 		case input.AddParticipant:
@@ -106,18 +91,16 @@ func (w *Worker) findCall(callSid string) (storage.Call, error) {
 
 	record, err := a.storage.FindRecord(callSid)
 	if err != nil {
-		a.logger.Warn().Str("application", a.id).Str("worker", w.id).
+		a.logger.Warn().Str("application", a.id).Int("worker", w.id).
 			Str("call_sid", callSid).
-			Str("storage", fmt.Sprintf("%T", a.storage)).
 			Msgf("storage.FindRecord error: %s", err)
 	}
 	call := storage.Call{}
 
 	err = json.Unmarshal([]byte(record), &call)
 	if err != nil {
-		a.logger.Warn().Str("application", a.id).Str("worker", w.id).
+		a.logger.Warn().Str("application", a.id).Int("worker", w.id).
 			Str("call_sid", callSid).
-			Str("storage", fmt.Sprintf("%T", a.storage)).
 			RawJSON("record", []byte(record)).
 			Msgf("json.Unmarshal error: %s", err)
 	}
@@ -137,7 +120,7 @@ func (w *Worker) modifyCall(call *voicePlatform.Call) error {
 
 func (w *Worker) convertCallInputToVoicePlatform(inputCall *input.InForm) *voicePlatform.Call {
 	v := &voicePlatform.Call{}
-	// todo Fill all the rest fields
+	// todo Fill all the rest of fields
 	v.Sid = inputCall.CallSid
 
 	return v
